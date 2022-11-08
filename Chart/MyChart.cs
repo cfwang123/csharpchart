@@ -1,11 +1,13 @@
 ﻿using System.Drawing;
 using System.Linq;
+using System.Security.Policy;
 using System.Windows.Forms;
 using System.Xml.Linq;
 
 namespace Q.Chart;
 
 public sealed partial class MyChart : PictureBox {
+	public static readonly DateTime EPOCH = new DateTime(1970, 1, 1);
 	Bitmap bmp, bmpover;
 	Graphics sdc, sdcover;
 	Pen pen;
@@ -248,7 +250,7 @@ public sealed partial class MyChart : PictureBox {
 			if (Util.GetInterpolatedY(data, xaxis.c2d(lastmouse.X), out double y))
 				leg += y.ToString("0.000") + " " + unit;
 		}
-		if(focusPointPos.is_between(0, data.Count-1) && data[focusPointPos].x.is_between(xaxis.Dmin,xaxis.Dmax) && data[focusPointPos].y.is_between(yaxis.Dmin,yaxis.Dmax)) {
+		if (focusPointPos >= 0 && focusPointPos < data.Count && data[focusPointPos].x >= xaxis.Dmin && data[focusPointPos].x <= xaxis.Dmax && data[focusPointPos].y >= yaxis.Dmin && data[focusPointPos].y <= yaxis.Dmax) {
 			var v = data[focusPointPos];
 			pen.Width = 5;
 			pen.Color = Color.FromArgb(0x60, Color.Blue);
@@ -456,7 +458,7 @@ public sealed class Axis {
 			start += ticksize;
 		while(start < max) {
 			string tickstr;
-			if (isDate) tickstr = F.EPOCH.AddMilliseconds(start).ToString("HH:mm:ss");
+			if (isDate) tickstr = MyChart.EPOCH.AddMilliseconds(start).ToString("HH:mm:ss");
 			else tickstr = start.ToString("f" + dec);
 			var wh = sdc.MeasureString(tickstr, font1);
 			tickarr.Add(new TickLabel {
@@ -487,7 +489,7 @@ public struct DataPoint {
 		this.y = y;
 	}
 	public DataPoint(DateTime x, double y) {
-		this.x = (x - F.EPOCH).TotalMilliseconds;
+		this.x = (x - MyChart.EPOCH).TotalMilliseconds;
 		this.y = y;
 	}
 }
