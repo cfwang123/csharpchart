@@ -1,3 +1,5 @@
+.vs
+.git
 bin/Debug
 bin/Release/data
 bin/Release/*.pdb
