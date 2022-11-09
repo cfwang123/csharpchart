@@ -28,7 +28,6 @@
 			this.emove = new System.Windows.Forms.CheckBox();
 			this.pic = new Q.Chart.MyChart();
 			this.button1 = new System.Windows.Forms.Button();
-			((System.ComponentModel.ISupportInitialize)(this.pic)).BeginInit();
 			this.SuspendLayout();
 			// 
 			// timer1
@@ -52,9 +51,9 @@
 			this.pic.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
             | System.Windows.Forms.AnchorStyles.Left) 
             | System.Windows.Forms.AnchorStyles.Right)));
-			this.pic.Location = new System.Drawing.Point(22, 30);
+			this.pic.Location = new System.Drawing.Point(12, 33);
 			this.pic.Name = "pic";
-			this.pic.Size = new System.Drawing.Size(837, 488);
+			this.pic.Size = new System.Drawing.Size(847, 480);
 			this.pic.TabIndex = 0;
 			this.pic.TabStop = false;
 			// 
@@ -79,7 +78,6 @@
 			this.Name = "Form1";
 			this.Text = "Form1";
 			this.Load += new System.EventHandler(this.Form1_Load);
-			((System.ComponentModel.ISupportInitialize)(this.pic)).EndInit();
 			this.ResumeLayout(false);
 			this.PerformLayout();
 

@@ -55,9 +55,6 @@
     <Compile Include="Chart\MyChart.cs">
       <SubType>Component</SubType>
     </Compile>
-    <Compile Include="Chart\MyChart.Designer.cs">
-      <DependentUpon>MyChart.cs</DependentUpon>
-    </Compile>
     <Compile Include="App.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <EmbeddedResource Include="Form1.resx">

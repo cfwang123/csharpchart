@@ -1,4 +1,6 @@
 ﻿using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.IO;
 using System.Linq;
 using System.Security.Policy;
 using System.Windows.Forms;
@@ -6,67 +8,72 @@ using System.Xml.Linq;
 
 namespace Q.Chart;
 
-public sealed partial class MyChart : PictureBox {
+public sealed partial class MyChart : Control {
 	public static readonly DateTime EPOCH = new DateTime(1970, 1, 1);
 	Bitmap bmp, bmpover;
 	Graphics sdc, sdcover;
 	Pen pen;
 	Font font1;
 	SolidBrush brush;
-	int W, H, font1CharHeight;
+	int W, H, font1CharWidth, font1CharHeight;
 	Timer timer;
 	Point lastmouse = new Point(-1, -1), mousedownpos = new Point(-1, -1);
 	Rectangle rGrid;
-	int focusPointPos = 2;
+	int focusSeries = 0, focusPointPos = 2;
 	int Ylabelmaxw;
 	public Axis xaxis = new Axis(), yaxis = new Axis() { isY = true };
-	List<DataPoint> data = new List<DataPoint>();
 	int uiinvalid = 0;
-	public string legend = "", unit = "";
-	public Color seriesColor;
+	public List<Series> series = new List<Series>();
 
 	public MyChart() {
-		InitializeComponent();
 		MouseMove += MyChart_MouseMove;
 		Paint += MyChart_Paint;
 		Resize += MyChart_Resize;
 		MouseDown += MyChart_MouseDown;
 		MouseUp += MyChart_MouseUp;
 		MouseWheel += MyChart_MouseMove;
-		W = xaxis.ScreenWorH = Width;
-		H = yaxis.ScreenWorH = Height;
-		bmp = new Bitmap(W,H);
-		bmpover = new Bitmap(W,H);
+		DoubleBuffered = true;
+		W = Math.Max(1,xaxis.ScreenWorH = Width);
+		H = Math.Max(1,yaxis.ScreenWorH = Height);
+		bmp = new Bitmap(W, H);
+		bmpover = new Bitmap(W, H);
 		sdc = Graphics.FromImage(bmp);
 		sdcover = Graphics.FromImage(bmpover);
 		font1 = new Font("宋体", 12);
+		font1CharWidth = (int)sdc.MeasureString("0", font1).Width;
 		font1CharHeight = (int)sdc.MeasureString("X轠", font1).Height;
 		pen = new Pen(Brushes.Black);
 		brush = new SolidBrush(Color.Black);
 		timer = new Timer() {
-			Interval = 16,
+			Interval = 15,
 			Enabled = true,
 		};
 		timer.Tick += Timer_Tick;
 	}
 
 	void Timer_Tick(object sender, EventArgs e) {
-		if((uiinvalid & 1) != 0) {
-			PaintChart();
-			Invalidate();
+		if (uiinvalid != 0) {
+			if ((uiinvalid & 1) != 0) {
+				PaintChart();
+				Invalidate();
+			}
+			else if ((uiinvalid & 2) != 0) {
+				PaintOverlay();
+				Invalidate();
+			}
+			uiinvalid = 0;
 		}
-		else if((uiinvalid & 2) != 0) {
-			PaintOverlay();
-			Invalidate();
-		}
-		uiinvalid = 0;
 	}
 
 	protected override void Dispose(bool disposing) {
 		timer.Dispose();
-		if (disposing && (components != null)) {
-			components.Dispose();
-		}
+		bmp.Dispose();
+		sdc.Dispose();
+		bmpover.Dispose();
+		sdcover.Dispose();
+		brush.Dispose();
+		pen.Dispose();
+		font1.Dispose();
 		base.Dispose(disposing);
 	}
 
@@ -85,6 +92,7 @@ public sealed partial class MyChart : PictureBox {
 		bmpover = new Bitmap(W,H);
 		sdc = Graphics.FromImage(bmp);
 		sdcover = Graphics.FromImage(bmpover);
+		font1CharHeight = (int)sdc.MeasureString("X轠", font1).Height;
 		RePaint();
 	}
 
@@ -100,18 +108,19 @@ public sealed partial class MyChart : PictureBox {
 
 	const int HOVERRANGE = 10;
 	void MyChart_MouseMove(object sender, MouseEventArgs e) {
-		bool ch = false, lay = true;
+		if (series.Count == 0)
+			return;
 		if(mousedownpos.X >= 0) {
-			if (Math.Abs(lastmouse.X - e.X) >= 3) {
+			if (Math.Abs(lastmouse.X - e.X) >= 1) {
 				int deltaX = e.X - mousedownpos.X;
 				double vv = deltaX / (double)rGrid.Width * (xaxis.mousedownDmax - xaxis.mousedownDmin);
 				xaxis.Dmin = xaxis.mousedownDmin - vv;
 				xaxis.Dmax = xaxis.mousedownDmax - vv;
-				ch = true;
+				uiinvalid |= 1;
 			}
 		}
 		else if(e.Delta != 0) {
-			ch = true;
+			uiinvalid |= 1;
 			double vv = (xaxis.Dmax - xaxis.Dmin) * 0.1 * (e.Delta>0?-2:2);
 			double ratio = (e.X - rGrid.Left) / (double)rGrid.Width;
 			xaxis.Dmin -= vv*ratio;
@@ -119,26 +128,30 @@ public sealed partial class MyChart : PictureBox {
 			focusPointPos = -1;
 		}
 		lastmouse = e.Location;
-		int i, len, cx, cy, found = -1;
-		Util.PointsInRange_Binsearch(data, xaxis.c2d(e.X - HOVERRANGE), xaxis.c2d(e.X + HOVERRANGE), out int i0, out int i1);
+		uiinvalid |= 2;
+		int i, len, cx, cy, found = -1, foundSeries = -1;
 		double dist, minDist = -1;
-		for (; i0 <= i1; i0++) {
-			cx = Math.Abs(xaxis.d2c(data[i0].x) - e.X);
-			cy = Math.Abs(yaxis.d2c(data[i0].y) - e.Y);
-			if (cx + cy > HOVERRANGE * 3 / 2)
-				continue;
-			dist = Math.Sqrt(cx * cx + cy * cy);
-			if (dist <= HOVERRANGE && minDist < 0 || dist < minDist) {
-				found = i0;
-				minDist = dist;
+		for (i = 0; i < series.Count; i++) {
+			var s = series[i];
+			Util.PointsInRange_Binsearch(s.data, xaxis.c2d(e.X - HOVERRANGE), xaxis.c2d(e.X + HOVERRANGE), out int i0, out int i1);
+			for (; i0 <= i1; i0++) {
+				cx = Math.Abs(xaxis.d2c(s.data[i0].x) - e.X);
+				cy = Math.Abs(yaxis.d2c(s.data[i0].y) - e.Y);
+				if (cx + cy > HOVERRANGE * 3 / 2)
+					continue;
+				dist = Math.Sqrt(cx * cx + cy * cy);
+				if (dist <= HOVERRANGE && minDist < 0 || dist < minDist) {
+					found = i0;
+					foundSeries = i;
+					minDist = dist;
+				}
 			}
 		}
-		if(focusPointPos != found) {
+		if(focusPointPos != found || focusSeries != foundSeries) {
 			focusPointPos = found;
-			lay = true;
+			focusSeries = foundSeries;
+			uiinvalid |= 2;
 		}
-		if (ch) uiinvalid |= 1;
-		else if (lay) uiinvalid |= 2;
 	}
 
 	void MyChart_MouseUp(object sender, MouseEventArgs e) {
@@ -151,37 +164,37 @@ public sealed partial class MyChart : PictureBox {
 		xaxis.mousedownDmax = xaxis.Dmax;
 	}
 
-	public void SetData(List<DataPoint> data, bool isDate = false, string unit = "") {
-		this.data = data;
-		if (data.Count > 0) {
-			xaxis.Dmin = yaxis.Dmin = double.PositiveInfinity;
-			xaxis.Dmax = yaxis.Dmax = double.NegativeInfinity;
-			foreach(var v in data) {
+	public void SetData(List<Series> series, bool isDate = false) {
+		xaxis.Dmin = yaxis.Dmin = double.PositiveInfinity;
+		xaxis.Dmax = yaxis.Dmax = double.NegativeInfinity;
+		foreach (var s in series) {
+			foreach (var v in s.data) {
 				xaxis.UpdateMinMax(v.x);
 				yaxis.UpdateMinMax(v.y);
 			}
+		}
+		if (xaxis.Dmin > xaxis.Dmax) {
+			xaxis.Dmin = yaxis.Dmin = 0;
+			xaxis.Dmax = yaxis.Dmax = 1;
+		}
+		else {
 			if (xaxis.Dmax - xaxis.Dmin == 0) {
 				xaxis.Dmin--;
 				xaxis.Dmax++;
 			}
-			if(yaxis.Dmax - yaxis.Dmin == 0) {
+			if (yaxis.Dmax - yaxis.Dmin == 0) {
 				yaxis.Dmin--;
 				yaxis.Dmax++;
 			}
 		}
-		else {
-			xaxis.Dmin = yaxis.Dmin = 0;
-			xaxis.Dmax = yaxis.Dmax = 1;
-		}
 		xaxis.isDate = isDate;
-		this.unit = unit;
-		seriesColor = Color.FromArgb(unchecked((int)0xff6699ff));
+		this.series = series;
 	}
 
 	void CalculateGrid() {
 		xaxis.genTicks(xaxis.Dmax, xaxis.Dmin, 0, sdc, font1);
 		yaxis.genTicks(yaxis.Dmax, yaxis.Dmin, 0, sdc, font1);
-		Ylabelmaxw = yaxis.tickarr.Max(v => v.W);
+		Ylabelmaxw = yaxis.tickarr.Count > 0 ? yaxis.tickarr.Max(v => v.W) : 0;
 		rGrid = new Rectangle(Ylabelmaxw+5, 20, W - Ylabelmaxw - 20, H - font1CharHeight - 25);
 		xaxis.Cmin = rGrid.Left;
 		xaxis.Cmax = rGrid.Right;
@@ -208,32 +221,39 @@ public sealed partial class MyChart : PictureBox {
 			if (xtick.value == xaxis.Dmin || xtick.value >= xaxis.Dmax) continue;
 			sdc.DrawLine(pen,j,rGrid.Top,j,rGrid.Bottom);
 		}
-		int cx0=int.MaxValue, cy0=0, cx1, cy1;
-		pen.Color = seriesColor;
 		sdc.Clip = new Region(rGrid);
-		sdc.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.HighQuality;
-		var R = new DrawLineReducer(sdc,pen);
-		for (i = 0; i < data.Count; i++) {
-			var p = data[i];
-			cx1 = xaxis.d2c(p.x);
-			cy1 = yaxis.d2c(p.y);
-			bool valid = !double.IsNaN(p.y);
-			if (valid) {
-				if (cx0 != int.MaxValue && xaxis.cisNeedDrawLine(cx0, cx1) && yaxis.cisNeedDrawLine(cy0, cy1)) {
-					R.AddLine(cx0, cy0, cx1, cy1);
+		sdc.SmoothingMode = SmoothingMode.HighQuality;
+		int cx0, cy0, cx1, cy1;
+		foreach (var s in series) {
+			pen.Color = s.color;
+			cx0 = int.MaxValue;
+			cy0 = 0;
+			var R = new DrawLineReducer(sdc, pen, rGrid);
+			Util.PointsInRange2_Binsearch(s.data, xaxis.c2d(rGrid.Left), xaxis.c2d(rGrid.Right), out int i0, out int i1);
+			if (i0 > 0) i0--;
+			if (i1 < s.data.Count - 1) i1 = Math.Min(i1 + 2, s.data.Count - 1);
+			for (; i0 < i1; i0++) {
+				var p = s.data[i0];
+				cx1 = xaxis.d2c(p.x);
+				cy1 = yaxis.d2c(p.y);
+				bool valid = !double.IsNaN(p.y);
+				if (valid) {
+					if (cx0 != int.MaxValue && xaxis.cisNeedDrawLine(cx0, cx1) && yaxis.cisNeedDrawLine(cy0, cy1)) {
+						R.AddLine(cx0, cy0, cx1, cy1);
+					}
+					cx0 = cx1;
+					cy0 = cy1;
 				}
-				cx0 = cx1;
-				cy0 = cy1;
+				else {
+					R.Finish();
+					cx0 = int.MaxValue;
+				}
 			}
-			else {
-				R.Finish();
-				cx0 = int.MaxValue;
-			}
+			R.Finish();
 		}
-		R.Finish();
 		sdc.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.Default;
 		pen.Width = 3;
-		pen.Color = Color.FromArgb(0x66,0x66,0x66);
+		pen.Color = Color.FromArgb(0x66, 0x66, 0x66);
 		sdc.ResetClip();
 		sdc.DrawRectangle(pen, rGrid);
 		PaintOverlay();
@@ -241,34 +261,84 @@ public sealed partial class MyChart : PictureBox {
 
 	void PaintOverlay() {
 		sdcover.Clear(Color.Transparent);
-		string leg = $"{legend} = ";
+		int i, len;
+		bool inGrid = false;
+		if (series.Count == 0)
+			return;
 		if (lastmouse.X >= rGrid.Left && lastmouse.X <= rGrid.Right && lastmouse.Y >= rGrid.Top && lastmouse.Y <= rGrid.Bottom) {
 			pen.Width = 1;
 			pen.Color = Color.Blue;
 			sdcover.DrawLine(pen, lastmouse.X, rGrid.Top + 1, lastmouse.X, rGrid.Bottom - 1);
-			double dx = xaxis.c2d(lastmouse.X);
-			if (Util.GetInterpolatedY(data, xaxis.c2d(lastmouse.X), out double y))
-				leg += y.ToString("0.000") + " " + unit;
+			inGrid = true;
 		}
-		if (focusPointPos >= 0 && focusPointPos < data.Count && data[focusPointPos].x >= xaxis.Dmin && data[focusPointPos].x <= xaxis.Dmax && data[focusPointPos].y >= yaxis.Dmin && data[focusPointPos].y <= yaxis.Dmax) {
-			var v = data[focusPointPos];
-			pen.Width = 5;
-			pen.Color = Color.FromArgb(0x60, Color.Blue);
-			sdcover.DrawEllipse(pen, new Rectangle(xaxis.d2c(v.x) - 10, yaxis.d2c(v.y) - 10, 20, 20));
+		if (focusSeries >= 0) {
+			var s = series[focusSeries];
+			if (focusPointPos >= 0 && focusPointPos < s.data.Count && s.data[focusPointPos].x >= xaxis.Dmin && s.data[focusPointPos].x <= xaxis.Dmax && s.data[focusPointPos].y >= yaxis.Dmin && s.data[focusPointPos].y <= yaxis.Dmax) {
+				var v = s.data[focusPointPos];
+				pen.Width = 5;
+				pen.Color = Color.FromArgb(0x60, s.color);
+				sdcover.DrawEllipse(pen, new Rectangle(xaxis.d2c(v.x) - 10, yaxis.d2c(v.y) - 10, 20, 20));
+				string msg = $"{v.x}, {Util.ToDec(v.y, s.dec)}";
+				var wh = sdcover.MeasureString(msg, font1);
+				Rectangle rect = new Rectangle(lastmouse.X + 10, lastmouse.Y + 10, (int)wh.Width + 4, (int)wh.Height + 4);
+				if (lastmouse.X + 10 + wh.Width + 4 >= rGrid.Right) rect.X = lastmouse.X - 10 - (int)wh.Width;
+				if (lastmouse.Y + 10 + wh.Height + 4 >= rGrid.Bottom) rect.Y = lastmouse.Y - 10 - (int)wh.Height;
+				pen.Width = 1;
+				pen.Color = Color.Black;
+				sdcover.FillRectangle(Brushes.White, rect);
+				sdcover.DrawRectangle(pen, rect);
+				sdcover.DrawString(msg, font1, Brushes.Black, rect.Left + 2, rect.Top + 2);
+			}
 		}
-		var wh = sdcover.MeasureString(leg, font1);
-		pen.Width = 1;
-		pen.Color = Color.FromArgb(0xff,0xe4,0xe4,0xe4);
-		sdcover.DrawRectangle(pen, rGrid.Right - wh.Width - 5 - 20, rGrid.Top + 8, 20, 15);
-		brush.Color = seriesColor;
-		sdcover.FillRectangle(brush, rGrid.Right - wh.Width - 5 - 20 + 2, rGrid.Top + 8 + 4, 16, 9);
-		var legrect = new RectangleF(rGrid.Right - wh.Width - 5, rGrid.Top + 5, wh.Width, wh.Height);
-		sdcover.FillRectangle(Brushes.White, legrect);
-		sdcover.DrawString(leg, font1, Brushes.Black, legrect.Left, legrect.Top);
+		float ypos = rGrid.Top + 8;
+		int legwid = 0, hovwid = 0, rowhei = 0;
+		for (i = 0; i < series.Count; i++) {
+			var s = series[i];
+			if (inGrid && Util.GetInterpolatedY(s.data, xaxis.c2d(lastmouse.X), out double y))
+				s._hovervalue = Util.ToDec(y, s.dec) + " " + s.unit;
+			else s._hovervalue = "";
+			var wh = sdcover.MeasureString(s.legend + " = ", font1);
+			s._legendwid = (int)wh.Width;
+			s._hovervaluewid = (int)sdcover.MeasureString(s._hovervalue, font1).Width;
+			rowhei = (int)wh.Height;
+			legwid = Math.Max(legwid, s._legendwid);
+			hovwid = Math.Max(hovwid, s._hovervaluewid);
+		}
+		for (i = 0; i < series.Count; i++) {
+			var s = series[i];
+			pen.Width = 1;
+			pen.Color = Color.FromArgb(0xff,0xe4,0xe4,0xe4);
+			sdcover.DrawRectangle(pen, rGrid.Right - legwid - hovwid - 5 - 20, ypos, 20, 15);
+			brush.Color = s.color;
+			sdcover.FillRectangle(brush, rGrid.Right - legwid - hovwid - 5 - 20 + 2, ypos + 4, 16, 9);
+			var legrect = new RectangleF(rGrid.Right - legwid - hovwid - 5, ypos - 3, legwid + hovwid, rowhei);
+			sdcover.FillRectangle(Brushes.White, legrect);
+			sdcover.DrawString(s.legend+" = ", font1, Brushes.Black, legrect.Left + legwid - s._legendwid, legrect.Top);
+			sdcover.DrawString(s._hovervalue, font1, Brushes.Black, legrect.Left + legwid + hovwid - s._hovervaluewid, legrect.Top);
+			ypos += rowhei;
+		}
 	}
 }
 
 public static class Util {
+	static readonly string[] decfmts = new string[] {
+		"0",
+		"0.0",
+		"0.00",
+		"0.000",
+		"0.0000",
+		"0.00000",
+		"0.000000",
+		"0.0000000",
+		"0.00000000",
+		"0.000000000",
+		"0.0000000000",
+		"0.00000000000",
+	};
+	public static string ToDec(double d, int dec = 0) {
+		return d.ToString(decfmts[dec >= 0 && dec < decfmts.Length ? dec : 0]);
+	}
+
 	public static bool GetInterpolatedY(List<DataPoint> data, double x, out double y) {
 		int s = 0, e = data.Count - 1, m, i0;
 		while (s <= e) {
@@ -288,6 +358,24 @@ public static class Util {
 			y = data[i0].y + (x - data[i0].x) / (data[i0 + 1].x - data[i0].x) * (data[i0 + 1].y - data[i0].y);
 			return true;
 		}
+	}
+
+	public static void PointsInRange2_Binsearch(List<DataPoint> data, double x0, double x1, out int from, out int to) {
+		int s=0,e=data.Count-1,m;
+		while (s <= e) {
+			m = (s + e) / 2;
+			if (data[m].x >= x0 || double.IsNaN(data[m].y)) e = m - 1;
+			else s = m + 1;
+		}
+		from = s;
+		s = from;
+		e = data.Count - 1;
+		while (s <= e) {
+			m = (s + e) / 2;
+			if (data[m].x <= x1 || double.IsNaN(data[m].y)) s = m + 1;
+			else e = m - 1;
+		}
+		to = e;
 	}
 
 	public static void PointsInRange_Binsearch(List<DataPoint> data, double x0, double x1, out int from, out int to) {
@@ -314,25 +402,47 @@ public struct DrawLineReducer {
 	public Pen pen;
 	public List<int> lines = new List<int>();
 	public double maxAngle, minAngle;
+	public Rectangle rGrid;
 	const double MERGEANGLE = Math.PI / 18;
 	const int MERGEMAXXDIFF = 3;
 
-	public DrawLineReducer(Graphics sdc, Pen pen) : this() {
+	public DrawLineReducer(Graphics sdc, Pen pen, Rectangle rGrid) : this() {
 		this.sdc = sdc;
 		this.pen = pen;
+		this.rGrid = rGrid;
 	}
 
 	public void Finish() {
 		if(lines.Count > 0) {
-			sdc.DrawLine(pen, lines[0], lines[1], lines[lines.Count - 4], lines[lines.Count - 3]);
+			DrawLine(lines[0], lines[1], lines[lines.Count - 2], lines[lines.Count - 1]);
 			lines.Clear();
 		}
+	}
+
+	void DrawLine(float x0, float y0, float x1, float y1) {
+		if(x0 < rGrid.Left) {
+			y0 = y0 + (rGrid.Left - x0) / (x1 - x0) * (y1 - y0);
+			x0 = rGrid.Left;
+		}
+		if(y0 < rGrid.Top) {
+			x0 = x0 + (rGrid.Top - y0) / (y1 - y0) * (x1 - x0);
+			y0 = 0;
+		}
+		if(x1 > rGrid.Right) {
+			y1 = y1 - (x1 - rGrid.Right) / (x1 - x0) * (y1 - y0);
+			x1 = rGrid.Right;
+		}
+		if(y1 > rGrid.Bottom) {
+			x1 = x1 - (y1 - rGrid.Bottom) / (y1 - y0) * (x1 - x0);
+			y1 = rGrid.Bottom;
+		}
+		sdc.DrawLine(pen, x0, y0, x1, y1);
 	}
 
 	public void AddLine(int x0, int y0, int x1, int y1) {
 		if(lines.Count == 0) {
 			if (x1 - x0 >= MERGEMAXXDIFF) {
-				sdc.DrawLine(pen, x0, y0, x1, y1);
+				DrawLine(x0, y0, x1, y1);
 				return;
 			}
 			else {
@@ -347,10 +457,10 @@ public struct DrawLineReducer {
 		else {
 			double angle = Math.Atan2(y1 - y0, x1 - x0);
 			if(x1 - lines[0] >= MERGEMAXXDIFF || angle < minAngle && angle < maxAngle - MERGEANGLE || angle > maxAngle && angle > minAngle + MERGEANGLE) {
-				sdc.DrawLine(pen, lines[0], lines[1], lines[lines.Count - 2], lines[lines.Count - 1]);
+				DrawLine(lines[0], lines[1], lines[lines.Count - 2], lines[lines.Count - 1]);
 				lines.Clear();
 				if(x1 - x0 >= MERGEMAXXDIFF) {
-					sdc.DrawLine(pen, x0, y0, x1, y1);
+					DrawLine(x0, y0, x1, y1);
 				}
 				else {
 					lines.Add(x0);
@@ -423,20 +533,23 @@ public sealed class Axis {
 			return;
 		}
 		tickcount = (short)(int)(0.3 * Math.Sqrt(ScreenWorH));
-		double delta = (max - min) / tickcount;
-		int dec = -(int)Math.Floor(Math.Log10(delta));
+		double delta;
+		int dec;
+		float charW = sdc.MeasureString("0000000000", font1).Width / 10 + 2;
+		while (true) {
+			delta = (max - min) / tickcount;
+			dec = -(int)Math.Floor(Math.Log10(delta));
+			int tickwid = (int)(Math.Max(Util.ToDec(min,dec).Length, Util.ToDec(max, dec).Length) * charW) + 5;
+			if (tickcount > 2 && tickwid * tickcount > Math.Abs(Cmax - Cmin))
+				tickcount--;
+			else break;
+		}
+
 		if (cTickDecimals > 0 && dec > cTickDecimals)
 			dec = cTickDecimals;
 		double magn = Math.Pow(10, -dec);
 		double norm = delta / magn; // 1.0 ~ 10.0
 		double size;
-		/*
-			0.1 ~ 0.15, 10 ticks , 0.005
-			dec = 3
-			magn = 0.001
-			norm = 5
-		 */
-		//0.025 -> -2 0.01
 		if (norm < 1.5) size = 1;
 		else if (norm < 3) {
 			size = 2;
@@ -459,7 +572,7 @@ public sealed class Axis {
 		while(start < max) {
 			string tickstr;
 			if (isDate) tickstr = MyChart.EPOCH.AddMilliseconds(start).ToString("HH:mm:ss");
-			else tickstr = start.ToString("f" + dec);
+			else tickstr = Util.ToDec(start, dec);
 			var wh = sdc.MeasureString(tickstr, font1);
 			tickarr.Add(new TickLabel {
 				value = start,

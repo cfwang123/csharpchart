@@ -22,17 +22,31 @@ public partial class Form1 : Form {
 		}
 	}
 
-	List<DataPoint> data;
 	void initChart() {
 		int i, j;
-		data = new List<DataPoint>();
+		var arr = new List<Series>();
+		List<DataPoint> data = new List<DataPoint>(), data2 = new List<DataPoint>();
 		foreach (int v in Enumerable.Range(0, 100)) {
 			if(v == 50)
 				data.Add(new DataPoint(v, double.NaN));
 			else data.Add(new DataPoint(v, Math.Sin(v/10.0)*100));
+			data2.Add(new DataPoint(v, Math.Cos(v/10.0)*100));
 		}
-		pic.SetData(data, false, "kg");
-		pic.legend = "Sin(x)";
+		arr.Add(new Series {
+			data = data,
+			legend = "sin(x)",
+			unit = "kg",
+			color = Color.Red,
+			dec = 3,
+		});
+		arr.Add(new Series {
+			data = data2,
+			legend = "cos(x)",
+			unit = "kg",
+			color = Color.Blue,
+			dec = 3,
+		});
+		pic.SetData(arr);
 		pic.RePaint();
 	}
 
