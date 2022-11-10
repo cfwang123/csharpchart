@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace Q;
 
-public partial class Form1 : Form {
+public sealed partial class Form1 : Form {
 	Action timerfunc;
 	Stopwatch s = new Stopwatch();
 	public Form1() {
@@ -53,7 +53,10 @@ public partial class Form1 : Form {
 		int i;
 		for (i = 0; i < 1000; i++) {
 			data.Add(new DataPoint(i, Math.Sin(i/10.0)*100));
-			data2.Add(new DataPoint(i, Math.Cos(i/10.0)*100));
+			//data2.Add(new DataPoint(i, Math.Cos(i/10.0)*100));
+			if (i / 10 % 2 == 0)
+				data2.Add(new DataPoint(i, i % 200 - 100));
+			else data2.Add(new DataPoint(i, double.NaN));
 		}
 		pic.SetData(new Config {
 			series = new List<Series> {
@@ -73,9 +76,7 @@ public partial class Form1 : Form {
 				},
 			},
 			isDate = false,
-			Xpanmin = -1000,
-			Xpanmax = 2000,
-			Ypadding = 20,
+			Ypadding = 0.1,
 		});
 		pic.RePaint();
 	}

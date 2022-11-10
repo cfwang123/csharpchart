@@ -34,8 +34,8 @@ public sealed class MyChart : Control {
 		MouseUp += MyChart_MouseUp;
 		MouseWheel += MyChart_MouseMove;
 		DoubleBuffered = true;
-		W = Math.Max(1,xaxis.ScreenWorH = Width);
-		H = Math.Max(1,yaxis.ScreenWorH = Height);
+		W = xaxis.ScreenWorH = Math.Max(1,Width);
+		H = yaxis.ScreenWorH = Math.Max(1,Height);
 		bmp = new Bitmap(W, H);
 		bmpover = new Bitmap(W, H);
 		sdc = Graphics.FromImage(bmp);
@@ -68,7 +68,6 @@ public sealed class MyChart : Control {
 				sdc = Graphics.FromImage(bmp);
 				sdcover = Graphics.FromImage(bmpover);
 				font1CharHeight = (int)sdc.MeasureString("X轠", font1).Height;
-				SetDminDmax();
 				PaintChart();
 				Invalidate();
 			}
@@ -157,10 +156,12 @@ public sealed class MyChart : Control {
 	}
 
 	void MyChart_Resize(object sender, EventArgs e) {
-		if (W <= 0 || H <= 0)
+		if (Width <= 0 || Height <= 0)
 			return;
 		lastmouse.X = -1;
 		focusSeries = -1;
+		if (W <= 1 || H <= 1)
+			Timer_Tick(null, null);
 		uiinvalid |= 4;
 	}
 
@@ -178,7 +179,7 @@ public sealed class MyChart : Control {
 	void MyChart_MouseMove(object sender, MouseEventArgs e) {
 		if (series.Count == 0)
 			return;
-		if(mousedownpos.X >= 0) {
+		if(mousedownpos.X >= 0 && C.enablePan) {
 			if (Math.Abs(lastmouse.X - e.X) >= 1) {
 				int deltaX = e.X - mousedownpos.X;
 				double vv = deltaX / (double)rGrid.Width * (xaxis.mousedownDmin - xaxis.mousedownDmax);
@@ -194,49 +195,67 @@ public sealed class MyChart : Control {
 			}
 			if (Math.Abs(lastmouse.Y - e.Y) >= 1) {
 				int deltaY = e.Y - mousedownpos.Y;
-				double vv = deltaY / (double)rGrid.Height * (yaxis.mousedownDmin - yaxis.mousedownDmax);
+				double vv = deltaY / (double)rGrid.Height * (yaxis.mousedownDmax - yaxis.mousedownDmin);
 				if (C._Yhaspanminmax) {
 					if (vv < 0 & yaxis.mousedownDmin + vv < C.Ypanmin)
 						vv = C.Ypanmin - yaxis.mousedownDmin;
 					else if (vv > 0 && yaxis.mousedownDmax + vv > C.Ypanmax)
 						vv = C.Ypanmax - yaxis.mousedownDmax;
 				}
-				yaxis.Dmin = yaxis.mousedownDmin - vv;
-				yaxis.Dmax = yaxis.mousedownDmax - vv;
+				yaxis.Dmin = yaxis.mousedownDmin + vv;
+				yaxis.Dmax = yaxis.mousedownDmax + vv;
 				uiinvalid |= 1;
 			}
 		}
-		else if(e.Delta != 0) {
+		if(e.Delta != 0 && C.enablePan) {
 			uiinvalid |= 1;
-			double vv = (xaxis.Dmax - xaxis.Dmin) * 0.1 * (e.Delta>0?-2:2);
-			double ratio = (e.X - rGrid.Left) / (double)rGrid.Width;
-			xaxis.Dmin -= vv*ratio;
-			xaxis.Dmax += vv*(1-ratio);
-			if (C._Xhaspanminmax) {
-				if (xaxis.Dmin < C.Xpanmin)
-					xaxis.Dmin = C.Xpanmin;
-				if (xaxis.Dmax > C.Xpanmax)
-					xaxis.Dmax = C.Xpanmax;
-			}
 			focusPointPos = -1;
+			if (ModifierKeys == Keys.Control) {
+				double vv = (yaxis.Dmax - yaxis.Dmin) * 0.1 * (e.Delta > 0 ? -2 : 2);
+				double ratio = (e.Y - rGrid.Top) / (double)rGrid.Bottom;
+				yaxis.Dmin -= vv * ratio;
+				yaxis.Dmax += vv * (1 - ratio);
+				if (C._Yhaspanminmax) {
+					if (yaxis.Dmin < C.Ypanmin)
+						yaxis.Dmin = C.Ypanmin;
+					if (yaxis.Dmax > C.Ypanmax)
+						yaxis.Dmax = C.Ypanmax;
+				}
+			}
+			else {
+				double vv = (xaxis.Dmax - xaxis.Dmin) * 0.1 * (e.Delta > 0 ? -2 : 2);
+				double ratio = (e.X - rGrid.Left) / (double)rGrid.Width;
+				xaxis.Dmin -= vv * ratio;
+				xaxis.Dmax += vv * (1 - ratio);
+				if (C._Xhaspanminmax) {
+					if (xaxis.Dmin < C.Xpanmin)
+						xaxis.Dmin = C.Xpanmin;
+					if (xaxis.Dmax > C.Xpanmax)
+						xaxis.Dmax = C.Xpanmax;
+				}
+			}
 		}
 		lastmouse = e.Location;
 		uiinvalid |= 2;
 		int i, cx, cy, found = -1, foundSeries = -1;
 		double dist, minDist = -1;
-		for (i = 0; i < series.Count; i++) {
-			var s = series[i];
-			Util.PointsInRange_Binsearch(s.data, xaxis.c2d(e.X - HOVERRANGE), xaxis.c2d(e.X + HOVERRANGE), out int i0, out int i1);
-			for (; i0 <= i1; i0++) {
-				cx = Math.Abs(xaxis.d2c(s.data[i0].x) - e.X);
-				cy = Math.Abs(yaxis.d2c(s.data[i0].y) - e.Y);
-				if (cx + cy > HOVERRANGE * 3 / 2)
-					continue;
-				dist = Math.Sqrt(cx * cx + cy * cy);
-				if (dist <= HOVERRANGE && minDist < 0 || dist < minDist) {
-					found = i0;
-					foundSeries = i;
-					minDist = dist;
+		if (C.enableHover) {
+			for (i = 0; i < series.Count; i++) {
+				var s = series[i];
+				Util.PointsInRange_Binsearch(s.data, xaxis.c2d(e.X - HOVERRANGE), xaxis.c2d(e.X + HOVERRANGE), out int i0, out int i1);
+				for (; i0 <= i1; i0++) {
+					if (double.IsNaN(s.data[i0].y))
+						continue;
+					cx = Math.Abs(xaxis.d2c(s.data[i0].x) - e.X);
+					cy = Math.Abs(yaxis.d2c(s.data[i0].y) - e.Y);
+					if (cx + cy > HOVERRANGE * 3 / 2)
+						continue;
+					dist = Math.Sqrt(cx * cx + cy * cy);
+					if (dist <= HOVERRANGE && minDist < 0 || dist < minDist) {
+						found = i0;
+						foundSeries = i;
+						minDist = dist;
+					}
 				}
 			}
 		}
@@ -282,18 +301,18 @@ public sealed class MyChart : Control {
 				continue;
 			j = yaxis.d2c(ytick.value);
 			sdc.DrawString(ytick.strvalue, font1, Brushes.Black, 1 + (Ylabelmaxw - ytick.W), j - ytick.H / 2);
-			sdc.DrawLine(pen,rGrid.Left,j,rGrid.Right,j);
+			if(C.drawGrid) sdc.DrawLine(pen,rGrid.Left,j,rGrid.Right,j);
 		}
 		foreach(var xtick in xaxis.tickarr) {
 			if (xtick.value < xaxis.Dmin || xtick.value > xaxis.Dmax)
 				continue;
 			j = xaxis.d2c(xtick.value);
 			sdc.DrawString(xtick.strvalue, font1, Brushes.Black, j-xtick.W/2, H-5-font1CharHeight);
-			sdc.DrawLine(pen,j,rGrid.Top,j,rGrid.Bottom);
+			if(C.drawGrid) sdc.DrawLine(pen,j,rGrid.Top,j,rGrid.Bottom);
 		}
 		sdc.SmoothingMode = SmoothingMode.HighQuality;
 		int cx0, cy0, cx1, cy1;
-		var R = C.drawLineReducer;
+		var R = C._drawLineReducer;
 		R.Init(sdc, bmp, pen, rGrid);
 		foreach (var s in series) {
 			pen.Color = s.color;
@@ -330,15 +349,26 @@ public sealed class MyChart : Control {
 
 	void PaintOverlay() {
 		sdcover.Clear(Color.Transparent);
-		int i, len;
+		int i;
 		bool inGrid = false;
 		if (series.Count == 0)
 			return;
-		if (lastmouse.X >= rGrid.Left && lastmouse.X <= rGrid.Right && lastmouse.Y >= rGrid.Top && lastmouse.Y <= rGrid.Bottom) {
+		if (C.enableHover && lastmouse.X >= rGrid.Left && lastmouse.X <= rGrid.Right && lastmouse.Y >= rGrid.Top && lastmouse.Y <= rGrid.Bottom) {
 			pen.Width = 1;
 			pen.Color = Color.Blue;
 			sdcover.DrawLine(pen, lastmouse.X, rGrid.Top + 1, lastmouse.X, rGrid.Bottom - 1);
-			inGrid = true;
+			inGrid = true; 
+			if (C.showHoverXPos) {
+				double x = xaxis.c2d(lastmouse.X);
+				string msg;
+				if (xaxis.isDate) msg = Util.FromTs(x).ToString("HH:mm:ss");
+				else msg = Util.ToDec(x, xaxis._nowtickdec);
+				var wh = sdcover.MeasureString(msg, font1);
+				Rectangle rect = new Rectangle(lastmouse.X+1,0,(int)wh.Width,(int)wh.Height-3);
+				if (rect.Right >= W) rect.X = lastmouse.X - 2 - (int)wh.Width;
+				sdcover.FillRectangle(Brushes.White, rect);
+				sdcover.DrawString(msg, font1, Brushes.Black, rect.Left, rect.Top);
+			}
 		}
 		if (focusSeries >= 0) {
 			var s = series[focusSeries];
@@ -349,8 +379,8 @@ public sealed class MyChart : Control {
 				sdcover.DrawEllipse(pen, new Rectangle(xaxis.d2c(v.x) - 10, yaxis.d2c(v.y) - 10, 20, 20));
 				string msg = null;
 				if(C.isDate)
-					msg = $"{Util.FromTs(v.x):yyyy-MM-dd HH:mm:ss}, {Util.ToDec(v.y, s.dec)}";
-				else msg = $"{v.x}, {Util.ToDec(v.y, s.dec)}";
+					msg = $"{Util.FromTs(v.x):yyyy-MM-dd HH:mm:ss}, {Util.ToDec(v.y, s.dec)} {s.unit}";
+				else msg = $"{v.x}, {Util.ToDec(v.y, s.dec)} {s.unit}";
 				var wh = sdcover.MeasureString(msg, font1);
 				Rectangle rect = new Rectangle(lastmouse.X + 10, lastmouse.Y + 10, (int)wh.Width + 4, (int)wh.Height + 4);
 				if (lastmouse.X + 10 + wh.Width + 4 >= rGrid.Right) rect.X = lastmouse.X - 10 - (int)wh.Width;
@@ -369,7 +399,7 @@ public sealed class MyChart : Control {
 			if (inGrid && Util.GetInterpolatedY(s.data, xaxis.c2d(lastmouse.X), out double y))
 				s._hovervalue = Util.ToDec(y, s.dec) + " " + s.unit;
 			else s._hovervalue = "";
-			var wh = sdcover.MeasureString(s.legend + " = ", font1);
+			var wh = sdcover.MeasureString(s.legend + (C.enableHover?" = ":""), font1);
 			s._legendwid = (int)wh.Width;
 			s._hovervaluewid = (int)sdcover.MeasureString(s._hovervalue, font1).Width;
 			rowhei = (int)wh.Height;
@@ -385,7 +415,7 @@ public sealed class MyChart : Control {
 			sdcover.FillRectangle(brush, rGrid.Right - legwid - hovwid - 5 - 20 + 2, ypos + 4, 16, 9);
 			var legrect = new RectangleF(rGrid.Right - legwid - hovwid - 5, ypos - 3, legwid + hovwid, rowhei);
 			sdcover.FillRectangle(Brushes.White, legrect);
-			sdcover.DrawString(s.legend+" = ", font1, Brushes.Black, legrect.Left + legwid - s._legendwid, legrect.Top);
+			sdcover.DrawString(s.legend+(C.enableHover?" = ":""), font1, Brushes.Black, legrect.Left + legwid - s._legendwid, legrect.Top);
 			sdcover.DrawString(s._hovervalue, font1, Brushes.Black, legrect.Left + legwid + hovwid - s._hovervaluewid, legrect.Top);
 			ypos += rowhei;
 		}

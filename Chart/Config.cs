@@ -5,10 +5,10 @@ public sealed class Config {
 	public List<Series> series;
 	public List<TickLabel> cXTickLabels;
 	public List<TickLabel> cYTickLabels;
-	public DrawLineReducer2 drawLineReducer = new DrawLineReducer2();
 	public double Xmin, Xmax, Ymin, Ymax, Xpanmin, Xpanmax, Ypanmin, Ypanmax, Ypadding = 20;
-	public bool isDate;
+	public bool isDate, enablePan = true, enableHover = true, showHoverXPos = true, drawGrid = true;
 	//private
+	public DrawLineReducer2 _drawLineReducer = new DrawLineReducer2();
 	public bool _Xhasminmax, _Yhasminmax, _Xhaspanminmax, _Yhaspanminmax;
 	public void Init() {
 		_Xhasminmax = Xmax > Xmin;

@@ -1,4 +1,5 @@
 ﻿using System.Drawing;
+using System.Runtime.Remoting.Metadata.W3cXsd2001;
 
 namespace Q.Chart;
 
@@ -8,11 +9,14 @@ public sealed class Axis {
 	public double Dmin, Dmax = 1, datamax, datamin, mousedownDmin, mousedownDmax;
 	public short tickcount;
 	public List<TickLabel> tickarr = new List<TickLabel>(), cTicks;
+	//private
+	public int _nowtickdec;
 
 	public bool cisNeedDrawLine(int c1, int c2) {
 		if (isY) {
 			if (c1 < Cmax) return c2 >= Cmax;
-			else return c1 <= Cmin;
+			else if (c1 <= Cmin) return true;
+			else return c2 <= Cmin;
 		}
 		else {
 			if (c1 < Cmin) return c2 >= Cmin;
@@ -194,8 +198,9 @@ public sealed class Axis {
 		while (true) {
 			delta = (max - min) / tickcount;
 			dec = -(int)Math.Floor(Math.Log10(delta));
+			_nowtickdec = Math.Max(dec + 2, 0);
 			int tickwid = (int)(Math.Max(Util.ToDec(min,dec).Length, Util.ToDec(max, dec).Length) * charW) + 5;
-			if (tickcount > 2 && tickwid * tickcount > ScreenWorH - 20)
+			if (!isY && tickcount > 2 && tickwid * tickcount > ScreenWorH - 20)
 				tickcount--;
 			else break;
 		}
