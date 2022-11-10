@@ -1,11 +1,11 @@
 ﻿global using System;
 global using System.Collections.Generic;
 global using System.Windows.Forms;
-using Q;
 using System.Runtime.InteropServices;
 
 namespace Q {
 	public static class App {
+		public static Form f;
 		[STAThread]
 		public static void Main(string[] args) {
 			SetProcessDPIAware();
@@ -14,9 +14,15 @@ namespace Q {
 			AppDomain.CurrentDomain.UnhandledException += (o, e) => onException(e.ExceptionObject as Exception);
 			Application.EnableVisualStyles();
 			Application.SetCompatibleTextRenderingDefault(false);
-			Application.Run(new Form1());
+			Application.Run(f = new Form1());
 		}
 		[DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
+		public static void mbox(string s) => MessageBox.Show(s);
+
+		public static void pr(string s) {
+			if (!FormPR.IsOpened) FormPR.OpenForm();
+			FormPR.AppendMessage(s);
+		}
 
 
 		static int errcount = 0;

@@ -1,4 +1,6 @@
 .vs
+.vs/*
+.vs/**/*
 .git
 bin/Debug
 bin/Release/data
