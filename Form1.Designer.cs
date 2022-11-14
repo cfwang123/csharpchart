@@ -29,7 +29,9 @@
 			this.button2 = new System.Windows.Forms.Button();
 			this.button3 = new System.Windows.Forms.Button();
 			this.edatanum = new System.Windows.Forms.ComboBox();
-			this.etimewatch = new System.Windows.Forms.CheckBox();
+			this.lbtime = new System.Windows.Forms.Label();
+			this.bmultiy = new System.Windows.Forms.Button();
+			this.bbar = new System.Windows.Forms.Button();
 			this.pic = new Q.Chart.MyChart();
 			this.SuspendLayout();
 			// 
@@ -42,7 +44,7 @@
 			// 
 			this.button1.Location = new System.Drawing.Point(12, 4);
 			this.button1.Name = "button1";
-			this.button1.Size = new System.Drawing.Size(75, 23);
+			this.button1.Size = new System.Drawing.Size(52, 23);
 			this.button1.TabIndex = 2;
 			this.button1.Text = "Basic";
 			this.button1.UseVisualStyleBackColor = true;
@@ -50,7 +52,7 @@
 			// 
 			// button2
 			// 
-			this.button2.Location = new System.Drawing.Point(189, 4);
+			this.button2.Location = new System.Drawing.Point(357, 3);
 			this.button2.Name = "button2";
 			this.button2.Size = new System.Drawing.Size(82, 23);
 			this.button2.TabIndex = 2;
@@ -60,7 +62,7 @@
 			// 
 			// button3
 			// 
-			this.button3.Location = new System.Drawing.Point(277, 4);
+			this.button3.Location = new System.Drawing.Point(180, 5);
 			this.button3.Name = "button3";
 			this.button3.Size = new System.Drawing.Size(75, 23);
 			this.button3.TabIndex = 2;
@@ -72,21 +74,40 @@
 			// 
 			this.edatanum.FlatStyle = System.Windows.Forms.FlatStyle.Flat;
 			this.edatanum.FormattingEnabled = true;
-			this.edatanum.Location = new System.Drawing.Point(93, 6);
+			this.edatanum.Location = new System.Drawing.Point(261, 5);
 			this.edatanum.Name = "edatanum";
 			this.edatanum.Size = new System.Drawing.Size(90, 20);
 			this.edatanum.TabIndex = 3;
 			// 
-			// etimewatch
+			// lbtime
 			// 
-			this.etimewatch.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
-			this.etimewatch.AutoSize = true;
-			this.etimewatch.Location = new System.Drawing.Point(735, 8);
-			this.etimewatch.Name = "etimewatch";
-			this.etimewatch.Size = new System.Drawing.Size(96, 16);
-			this.etimewatch.TabIndex = 4;
-			this.etimewatch.Text = "Measure Time";
-			this.etimewatch.UseVisualStyleBackColor = true;
+			this.lbtime.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Right)));
+			this.lbtime.Location = new System.Drawing.Point(711, 7);
+			this.lbtime.Name = "lbtime";
+			this.lbtime.Size = new System.Drawing.Size(120, 19);
+			this.lbtime.TabIndex = 4;
+			this.lbtime.Text = "0s";
+			this.lbtime.TextAlign = System.Drawing.ContentAlignment.MiddleRight;
+			// 
+			// bmultiy
+			// 
+			this.bmultiy.Location = new System.Drawing.Point(70, 4);
+			this.bmultiy.Name = "bmultiy";
+			this.bmultiy.Size = new System.Drawing.Size(60, 23);
+			this.bmultiy.TabIndex = 2;
+			this.bmultiy.Text = "Multi Y";
+			this.bmultiy.UseVisualStyleBackColor = true;
+			this.bmultiy.Click += new System.EventHandler(this.bmultiy_Click);
+			// 
+			// bbar
+			// 
+			this.bbar.Location = new System.Drawing.Point(136, 4);
+			this.bbar.Name = "bbar";
+			this.bbar.Size = new System.Drawing.Size(38, 23);
+			this.bbar.TabIndex = 2;
+			this.bbar.Text = "Bar";
+			this.bbar.UseVisualStyleBackColor = true;
+			this.bbar.Click += new System.EventHandler(this.bbar_Click);
 			// 
 			// pic
 			// 
@@ -104,17 +125,18 @@
 			this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 12F);
 			this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
 			this.ClientSize = new System.Drawing.Size(843, 507);
-			this.Controls.Add(this.etimewatch);
+			this.Controls.Add(this.lbtime);
 			this.Controls.Add(this.edatanum);
 			this.Controls.Add(this.button2);
 			this.Controls.Add(this.button3);
+			this.Controls.Add(this.bbar);
+			this.Controls.Add(this.bmultiy);
 			this.Controls.Add(this.button1);
 			this.Controls.Add(this.pic);
 			this.Name = "Form1";
 			this.Text = "Form1";
 			this.Load += new System.EventHandler(this.Form1_Load);
 			this.ResumeLayout(false);
-			this.PerformLayout();
 
 		}
 
@@ -126,7 +148,9 @@
 		private Button button2;
 		private Button button3;
 		private ComboBox edatanum;
-		private CheckBox etimewatch;
+		private Label lbtime;
+		private Button bmultiy;
+		private Button bbar;
 	}
 }
 

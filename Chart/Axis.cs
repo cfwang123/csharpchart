@@ -1,4 +1,5 @@
 ﻿using System.Drawing;
+using System.Linq;
 using System.Runtime.Remoting.Metadata.W3cXsd2001;
 
 namespace Q.Chart;
@@ -6,11 +7,13 @@ namespace Q.Chart;
 public sealed class Axis {
 	public bool isDate, isY;
 	public int ScreenWorH, Cmin, Cmax = 1;
-	public double Dmin, Dmax = 1, datamax, datamin, mousedownDmin, mousedownDmax;
+	public double Dmin, Dmax = 1, datamax, datamin, mousedownDmin, mousedownDmax, cDmax, cDmin;
 	public short tickcount;
+	public string title = "", unit = "";
 	public List<TickLabel> tickarr = new List<TickLabel>(), cTicks;
 	//private
-	public int _nowtickdec;
+	public int _nowtickdec, _tickmaxW, _left;
+	public bool _isAtLeft, _drawSmallGrid, _hasminmax;
 
 	public bool cisNeedDrawLine(int c1, int c2) {
 		if (isY) {
@@ -185,10 +188,12 @@ public sealed class Axis {
 					H = (int)Math.Ceiling(wh.Height),
 				};
 			}
+			_tickmaxW = tickarr.Count > 0 ? tickarr.Max(x => x.W) : 0;
 			return;
 		}
 		else if (isDate) {
 			genDateTicks(max, min, sdc, font1);
+			_tickmaxW = tickarr.Count > 0 ? tickarr.Max(x => x.W) : 0;
 			return;
 		}
 		tickcount = (short)(int)(0.3 * Math.Sqrt(ScreenWorH));
@@ -242,5 +247,6 @@ public sealed class Axis {
 			});
 			start += ticksize;
 		}
+		_tickmaxW = tickarr.Count > 0 ? tickarr.Max(x => x.W) : 0;
 	}
 }

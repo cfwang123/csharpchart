@@ -115,15 +115,19 @@ public sealed class DrawLineReducer2 {
 			x1 = x1 - (y1 - rGrid.Bottom) / (y1 - y0) * (x1 - x0);
 			y1 = rGrid.Bottom;
 		}
-		if(x0 == x1) {
-			if (x0 < 0 || x0 >= bmp.Width) return;
-			if (y0 < y1) for (y0 = Math.Max(y0, 0), y1 = Math.Min(y1, bmp.Height - 1); y0 <= y1; y0++) bmp.SetPixel((int)x0, (int)y0, pen.Color);
-			else for (y1 = Math.Max(y1, 0), y0 = Math.Min(y0, bmp.Height - 1); y0 >= y1; y0--) bmp.SetPixel((int)x0, (int)y0, pen.Color);
+		if (pen.Width <= 1) {
+			if (x0 == x1) {
+				if (x0 < 0 || x0 >= bmp.Width) return;
+				if (y0 < y1) for (y0 = Math.Max(y0, 0), y1 = Math.Min(y1, bmp.Height - 1); y0 <= y1; y0++) bmp.SetPixel((int)x0, (int)y0, pen.Color);
+				else for (y1 = Math.Max(y1, 0), y0 = Math.Min(y0, bmp.Height - 1); y0 >= y1; y0--) bmp.SetPixel((int)x0, (int)y0, pen.Color);
+				return;
+			}
+			else if (y0 == y1) {
+				if (y0 < 0 || y0 >= bmp.Height) return;
+				for (x0 = Math.Max(x0, 0), x1 = Math.Min(x1, bmp.Width - 1); x0 <= x1; x0++) bmp.SetPixel((int)x0, (int)y0, pen.Color);
+				return;
+			}
 		}
-		else if (y0 == y1) {
-			if (y0 < 0 || y0 >= bmp.Height) return;
-			for (x0 = Math.Max(x0, 0), x1 = Math.Min(x1, bmp.Width - 1); x0 <= x1; x0++) bmp.SetPixel((int)x0, (int)y0, pen.Color);
-		}
-		else sdc.DrawLine(pen, x0, y0, x1, y1);
+		sdc.DrawLine(pen, x0, y0, x1, y1);
 	}
 }
