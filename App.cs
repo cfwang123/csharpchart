@@ -1,6 +1,6 @@
-﻿global using System;
-global using System.Collections.Generic;
-global using System.Windows.Forms;
+using System;
+using System.Collections.Generic;
+using System.Windows.Forms;
 using System.Runtime.InteropServices;
 
 namespace Q {
@@ -39,4 +39,3 @@ namespace Q {
 		}
 	}
 }
-

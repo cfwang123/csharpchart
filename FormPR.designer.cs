@@ -1,3 +1,4 @@
+using System.Windows.Forms;
 ﻿namespace Q {
 	partial class FormPR {
 		/// <summary>
