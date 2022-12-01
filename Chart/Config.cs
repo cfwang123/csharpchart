@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Windows.Forms;
-﻿using System.Drawing;
+using System.Drawing;
 
 namespace Q.Chart {
 	public sealed class Config {
@@ -12,39 +11,47 @@ namespace Q.Chart {
 		public double Xmin, Xmax, Ymin, Ymax, Ypadding = 0.05;
 		public bool isDate, enableHover = true, enableCross = true, showHoverXPos = true, drawGridX = true, drawGridY = true;
 		public PanOption panX = new PanOption(), panY = new PanOption();
+		public LegendPosition legendPosition = LegendPosition.TopRight;
 		//private
 		public DrawLineReducer2 _drawLineReducer = new DrawLineReducer2();
 		public bool _Xhasminmax;
 		public void _init() {
 			_Xhasminmax = Xmax > Xmin;
+			panX = panX ?? new PanOption();
+			panY = panY ?? new PanOption();
 			panX._hasminmax = panX.Dmax > panX.Dmin;
 			panY._hasminmax = panY.Dmax > panY.Dmin;
+			if (series == null)
+				series = new List<Series>();
 			if (yaxes == null) yaxes = new List<YAxisOption>();
 			if (yaxes.Count == 0)
 				yaxes.Add(new YAxisOption {
 					Ymin = Ymin,
 					Ymax = Ymax,
-					unit = series[0].unit,
 					cTickLabels = cYTickLabels,
 				});
 			foreach (var s in series)
 				s._init();
 		}
 	}
-	
+
+	public enum LegendPosition {
+		TopLeft,TopRight,BottomLeft,BottomRight, Auto
+	}
+
 	public class PanOption {
 		public bool enablePan = true, enableZoom = true;
 		public double Dmin = 0, Dmax = 0, Dmindelta = 0.00001;
 		//private
 		public bool _hasminmax = false;
 	}
-	
+
 	public sealed class YAxisOption {
 		public string title = "", unit = "";
 		public double Ymin, Ymax;
 		public List<TickLabel> cTickLabels;
 	}
-	
+
 	public sealed class Series {
 		public List<DataPoint> data;
 		public string legend = "", unit = "";
@@ -64,25 +71,25 @@ namespace Q.Chart {
 			if (bar.color.A == 0) bar.color = color;
 		}
 	}
-	
+
 	public class LineOption {
 		public bool show = true;
 		public float lineWidth = 1;
 		public Color color = Color.Transparent;
 	}
-	
+
 	public class PointOption {
 		public bool show = false;
 		public float radius = 3, lineWidth = 1;
 		public Color color = Color.Transparent, fillColor = Color.White;
 	}
-	
+
 	public class BarOption {
 		public bool show = false;
 		public float width = 1;
 		public Color color = Color.Transparent;
 	}
-	
+
 	public struct TickLabel {
 		public double value;
 		public string strvalue;
@@ -93,7 +100,7 @@ namespace Q.Chart {
 			W = H = 0;
 		}
 	}
-	
+
 	public struct DataPoint {
 		public double x, y;
 		public DataPoint(double x, double y) {

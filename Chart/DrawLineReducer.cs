@@ -1,10 +1,8 @@
 using System;
-using System.Collections.Generic;
-using System.Windows.Forms;
-﻿using System.Drawing;
+using System.Drawing;
 
 namespace Q.Chart {
-	
+
 	public sealed class DrawLineReducer2 {
 		public Graphics sdc;
 		public Bitmap bmp;
@@ -16,23 +14,23 @@ namespace Q.Chart {
 			this.rGrid = rGrid;
 			this.bmp = bmp;
 		}
-	
+
 		public bool hasLine;
 		public int x, y0, y1;
 		public double maxAngle, minAngle;
-	
+
 		public void Finish() {
-			if(hasLine) {
+			if (hasLine) {
 				DrawLine(x, y0, x, y1);
 				hasLine = false;
 			}
 		}
-	
+
 		void UpdateY(int y) {
 			if (y < this.y0) this.y0 = y;
 			if (y > this.y1) this.y1 = y;
 		}
-	
+
 		void UpdateY(int y0, int y1) {
 			if (y0 < y1) {
 				this.y0 = y0;
@@ -43,7 +41,7 @@ namespace Q.Chart {
 				this.y1 = y0;
 			}
 		}
-	
+
 		public void AddLine(int x0, int y0, int x1, int y1) {
 			if (!hasLine) {
 				if (x0 == x1) {
@@ -54,26 +52,26 @@ namespace Q.Chart {
 				else DrawLine(x0, y0, x1, y1);
 			}
 			else {
-				if(x0 == this.x) {
-					if(x0 == x1) {
+				if (x0 == this.x) {
+					if (x0 == x1) {
 						UpdateY(y0);
 						UpdateY(y1);
 					}
-					else if(x1 == x0 + 1) {
-						int tmpy = (y0 + y1) / 2;
-						DrawLine(this.x, this.y0, this.x, this.y1);
-						DrawLine(this.x, y0, this.x, tmpy);
-						this.x = x1;
-						if(tmpy > y0) {
-							if (tmpy < y1) UpdateY(tmpy + 1, y1);
-							else hasLine = false;
-						}
-						else {
-							if (tmpy > y1) UpdateY(tmpy - 1, y1);
-							else hasLine = false;
-						}
-						//UpdateY(tmpy, y1);
-					}
+					//else if (x1 == x0 + 1) {
+					//	int tmpy = (y0 + y1) / 2;
+					//	DrawLine(this.x, this.y0, this.x, this.y1);
+					//	DrawLine(this.x, y0, this.x, tmpy);
+					//	this.x = x1;
+					//	if (tmpy > y0) {
+					//		if (tmpy < y1) UpdateY(tmpy + 1, y1);
+					//		else hasLine = false;
+					//	}
+					//	else {
+					//		if (tmpy > y1) UpdateY(tmpy - 1, y1);
+					//		else hasLine = false;
+					//	}
+					//	//UpdateY(tmpy, y1);
+					//}
 					else {
 						DrawLine(this.x, this.y0, this.x, this.y1);
 						hasLine = false;
@@ -92,29 +90,29 @@ namespace Q.Chart {
 				}
 			}
 		}
-	
+
 		void DrawLine(float x0, float y0, float x1, float y1) {
-			if(x0 < rGrid.Left) {
+			if (x0 < rGrid.Left) {
 				y0 = y0 + (rGrid.Left - x0) / (x1 - x0) * (y1 - y0);
 				x0 = rGrid.Left;
 			}
-			if(x1 > rGrid.Right) {
+			if (x1 > rGrid.Right) {
 				y1 = y1 - (x1 - rGrid.Right) / (x1 - x0) * (y1 - y0);
 				x1 = rGrid.Right;
 			}
-			if(y0 < rGrid.Top) {
+			if (y0 < rGrid.Top) {
 				x0 = x0 + (rGrid.Top - y0) / (y1 - y0) * (x1 - x0);
 				y0 = rGrid.Top;
 			}
-			else if(y0 > rGrid.Bottom) {
+			else if (y0 > rGrid.Bottom) {
 				x0 = x0 - (y0 - rGrid.Bottom) / (y0 - y1) * (x0 - x1);
 				y0 = rGrid.Bottom;
 			}
-			if(y1 < rGrid.Top) {
+			if (y1 < rGrid.Top) {
 				x1 = x1 + (rGrid.Top - y1) / (y0 - y1) * (x0 - x1);
 				y1 = rGrid.Top;
 			}
-			else if(y1 > rGrid.Bottom) {
+			else if (y1 > rGrid.Bottom) {
 				x1 = x1 - (y1 - rGrid.Bottom) / (y1 - y0) * (x1 - x0);
 				y1 = rGrid.Bottom;
 			}

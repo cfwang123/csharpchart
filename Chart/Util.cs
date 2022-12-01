@@ -1,8 +1,7 @@
 using System;
 using System.Collections.Generic;
-using System.Windows.Forms;
 namespace Q.Chart {
-	
+
 	public static class Util {
 		static readonly string[] decfmts = new string[] {
 			"0",
@@ -21,10 +20,10 @@ namespace Q.Chart {
 		public static string ToDec(double d, int dec = 0) {
 			return d.ToString(decfmts[dec >= 0 && dec < decfmts.Length ? dec : 0]);
 		}
-	
+
 		public static DateTime FromTs(double d) => MyChart.EPOCH.AddSeconds(d);
 		public static double ToTs(DateTime d) => (d - MyChart.EPOCH).TotalSeconds;
-	
+
 		public static bool GetInterpolatedY(List<DataPoint> data, double x, out double y) {
 			int s = 0, e = data.Count - 1, m, i0;
 			while (s <= e) {
@@ -45,9 +44,9 @@ namespace Q.Chart {
 				return true;
 			}
 		}
-	
+
 		public static void PointsInRange2_Binsearch(List<DataPoint> data, double x0, double x1, out int from, out int to) {
-			int s=0,e=data.Count-1,m;
+			int s = 0, e = data.Count - 1, m;
 			while (s <= e) {
 				m = (s + e) / 2;
 				if (data[m].x >= x0 || double.IsNaN(data[m].y)) e = m - 1;
@@ -63,9 +62,9 @@ namespace Q.Chart {
 			}
 			to = Math.Min(data.Count - 1, s);
 		}
-	
+
 		public static void PointsInRange_Binsearch(List<DataPoint> data, double x0, double x1, out int from, out int to) {
-			int s=0,e=data.Count-1,m;
+			int s = 0, e = data.Count - 1, m;
 			while (s <= e) {
 				m = (s + e) / 2;
 				if (data[m].x >= x0) e = m - 1;

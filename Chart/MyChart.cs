@@ -2,20 +2,23 @@ using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Linq;
+using System.Runtime.InteropServices;
 using System.Windows.Forms;
 
 namespace Q.Chart {
 
+	[ComVisible(true)]
 	public sealed class MyChart : Control {
 		public static Color[] AUTOCOLORS = new Color[] {
-			Color.FromArgb(0xed, 0xc2, 0x40),
-			Color.FromArgb(0xaf, 0xd8, 0xf8),
 			Color.FromArgb(0xcb, 0x4b, 0x4b),
 			Color.FromArgb(0x4d, 0xa7, 0x4d),
 			Color.FromArgb(0x94, 0x40, 0xed),
 			Color.FromArgb(0xeb, 0x52, 0xeb),
 			Color.FromArgb(0xeb, 0x52, 0xeb),
 			Color.FromArgb(0xed, 0x52, 0xb8),
+			Color.FromArgb(0xaf, 0xd8, 0xf8),
+			Color.FromArgb(0xed, 0xc2, 0x40),
 		};
 
 		public static readonly DateTime EPOCH = new DateTime(1970, 1, 1);
@@ -43,7 +46,6 @@ namespace Q.Chart {
 			MouseUp += MyChart_MouseUp;
 			MouseWheel += MyChart_MouseMove;
 			MouseDoubleClick += MyChart_MouseDoubleClick;
-			MouseClick += MyChart_MouseClick;
 			DoubleBuffered = true;
 			W = xaxis.ScreenWorH = Math.Max(1, Width);
 			H = Math.Max(1, Height);
@@ -63,7 +65,8 @@ namespace Q.Chart {
 			timer.Tick += Timer_Tick;
 		}
 
-		void MyChart_MouseClick(object sender, MouseEventArgs e) {
+		protected override void OnMouseClick(MouseEventArgs e) {
+			base.OnMouseClick(e);
 			Focus();
 		}
 
@@ -111,6 +114,7 @@ namespace Q.Chart {
 		}
 
 		public void SetData(Config c) {
+			c = c ?? new Config();
 			SetSeriesColor(c.series);
 			c._init();
 			yaxes.Clear();
@@ -143,10 +147,25 @@ namespace Q.Chart {
 			this.series = c.series;
 			this.C = c;
 			SetDminDmax();
-			uiinvalid = 1;
+			foreach(var y in yaxes) {
+				y.initDmin = y.datamin;
+				y.initDmax = y.datamax;
+			}
+			uiinvalid |= 1;
+		}
+
+		public void SetPanMinMax() {
+			C.panX.Dmin = xaxis.Dmin;
+			C.panX.Dmax = xaxis.Dmax;
+			C.panX._hasminmax = true;
+			C.panY.Dmin = yaxes[0].Dmin;
+			C.panY.Dmax = yaxes[0].Dmax;
+			C.panY._hasminmax = true;
 		}
 
 		static void SetSeriesColor(List<Series> series) {
+			if (series == null)
+				return;
 			var arrNeedColor = new List<Series>();
 			foreach (var s in series) {
 				if (s.color.A == 0)
@@ -204,10 +223,9 @@ namespace Q.Chart {
 					y.Dmin = y.datamin;
 					y.Dmax = y.datamax;
 					if (C.Ypadding > 0) {
-						double availY = H - font1CharHeight - 45, pad = 0;
+						double pad = 0;
 						if (C.Ypadding < 0.5)
 							pad = (y.Dmax - y.Dmin) * C.Ypadding;
-						if (pad < 0 || availY < pad * 2) pad = 0;
 						y.Dmin = y.Dmin - pad;
 						y.Dmax = y.Dmax + pad;
 					}
@@ -285,7 +303,7 @@ namespace Q.Chart {
 					int deltaX = e.X - mousedownpos.X;
 					double vv = deltaX / (double)rGrid.Width * (xaxis.mousedownDmin - xaxis.mousedownDmax);
 					if (C.panX._hasminmax) {
-						if (vv < 0 & xaxis.mousedownDmin + vv < C.panX.Dmin)
+						if (vv < 0 && xaxis.mousedownDmin + vv < C.panX.Dmin)
 							vv = C.panX.Dmin - xaxis.mousedownDmin;
 						else if (vv > 0 && xaxis.mousedownDmax + vv > C.panX.Dmax)
 							vv = C.panX.Dmax - xaxis.mousedownDmax;
@@ -295,18 +313,18 @@ namespace Q.Chart {
 					uiinvalid |= 1;
 				}
 				if (C.panY.enablePan && Math.Abs(lastmouse.Y - e.Y) >= 1) {
-					int deltaY = e.Y - mousedownpos.Y;
-					foreach (var y in yaxes) {
-						double vv = deltaY / (double)rGrid.Height * (y.mousedownDmax - y.mousedownDmin);
-						if (C.panY._hasminmax && yaxes.Count == 1) {
-							if (vv < 0 & y.mousedownDmin + vv < C.panY.Dmin)
-								vv = C.panY.Dmin - y.mousedownDmin;
-							else if (vv > 0 && y.mousedownDmax + vv > C.panY.Dmax)
-								vv = C.panY.Dmax - y.mousedownDmax;
-						}
-						y.Dmin = y.mousedownDmin + vv;
-						y.Dmax = y.mousedownDmax + vv;
+					var y0 = yaxes[0];
+					double vv = (e.Y - mousedownpos.Y) / (double)rGrid.Height * (y0.mousedownDmax - y0.mousedownDmin);
+					if (C.panY._hasminmax) {
+						if (vv > 0 && y0.mousedownDmax + vv > C.panY.Dmax)
+							vv = C.panY.Dmax - y0.mousedownDmax;
+						else if (vv < 0 && y0.mousedownDmin + vv < C.panY.Dmin)
+							vv = C.panY.Dmin - y0.mousedownDmin;
 					}
+					y0.Dmin = y0.mousedownDmin + vv;
+					y0.Dmax = y0.mousedownDmax + vv;
+					foreach (var y in yaxes.Skip(1))
+						y.SetMinMaxByY0(y0);
 					uiinvalid |= 1;
 				}
 			}
@@ -314,20 +332,25 @@ namespace Q.Chart {
 				uiinvalid |= 1;
 				focusPointPos = -1;
 				if (ModifierKeys == Keys.Control && C.panY.enableZoom) {
-					foreach (var y in yaxes) {
-						double vv = (y.Dmax - y.Dmin) * 0.2 * (e.Delta > 0 ? -1 : 1);
-						if (e.Delta > 0 && C.panY.Dmindelta > 0 && y.Dmax - y.Dmin + vv < C.panY.Dmindelta)
-							vv = C.panY.Dmindelta - (y.Dmax - y.Dmin);
+					Axis y0;
+					double vv;
+					y0 = yaxes[0];
+					vv = (y0.Dmax - y0.Dmin) * 0.2 * (e.Delta > 0 ? -1 : 1);
+					if (e.Delta > 0 && C.panY.Dmindelta > 0 && y0.Dmax - y0.Dmin + vv < C.panY.Dmindelta)
+						vv = C.panY.Dmindelta - (y0.Dmax - y0.Dmin);
+					if(vv != 0) {
 						double ratio = 1 - (e.Y - rGrid.Top) / (double)rGrid.Bottom;
-						y.Dmin -= vv * ratio;
-						y.Dmax += vv * (1 - ratio);
-						if (C.panY._hasminmax && yaxes.Count == 1) {
-							if (y.Dmin < C.panY.Dmin)
-								y.Dmin = C.panY.Dmin;
-							if (y.Dmax > C.panY.Dmax)
-								y.Dmax = C.panY.Dmax;
+						y0.Dmin -= vv * ratio;
+						y0.Dmax += vv * (1 - ratio);
+						if (C.panY._hasminmax) {
+							if (y0.Dmin < C.panY.Dmin)
+								y0.Dmin = C.panY.Dmin;
+							if (y0.Dmax > C.panY.Dmax)
+								y0.Dmax = C.panY.Dmax;
 						}
 					}
+					foreach (var y in yaxes.Skip(1))
+						y.SetMinMaxByY0(y0);
 				}
 				else if (C.panX.enableZoom) {
 					double vv = (xaxis.Dmax - xaxis.Dmin) * 0.2 * (e.Delta > 0 ? -1 : 1);
@@ -520,7 +543,6 @@ namespace Q.Chart {
 				sdc.DrawString(xtick.strvalue, f, Brushes.Black, j - xtick.W / 2, H - font1CharHeight);
 				if (C.drawGridX) sdc.DrawLine(pen, j, rGrid.Top, j, rGrid.Bottom);
 			}
-			sdc.SmoothingMode = SmoothingMode.HighQuality;
 			int cx0, cy0, cx1, cy1;
 			var R = C._drawLineReducer;
 			//bar
@@ -543,12 +565,13 @@ namespace Q.Chart {
 				}
 			}
 			//line
+			sdc.SmoothingMode = SmoothingMode.HighQuality;
 			R.Init(sdc, bmp, pen, rGrid);
 			foreach (var s in series) {
 				if (!s.line.show)
 					continue;
 				var y = yaxes[s.yaxis];
-				pen.Color = s.line.color;
+				pen.Color = Color.FromArgb(200, s.line.color);
 				pen.Width = s.line.lineWidth;
 				cx0 = int.MaxValue;
 				cy0 = 0;
@@ -572,6 +595,7 @@ namespace Q.Chart {
 				}
 				R.Finish();
 			}
+			sdc.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.Default;
 			//Point
 			foreach (var s in series) {
 				if (!s.point.show)
@@ -593,7 +617,6 @@ namespace Q.Chart {
 					}
 				}
 			}
-			sdc.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.Default;
 			pen.Width = 3;
 			pen.Color = Color.FromArgb(0x66, 0x66, 0x66);
 			sdc.DrawRectangle(pen, rGrid);
@@ -671,21 +694,54 @@ namespace Q.Chart {
 				legwid = Math.Max(legwid, s._legendwid);
 				hovwid = Math.Max(hovwid, s._hovervaluewid);
 			}
+			int allW = legwid + hovwid + 25, allH = rowhei * series.Count, L, T;
+			switch (C.legendPosition) {
+				case LegendPosition.Auto:
+					if(lastmouse.X >= rGrid.Right - allW - 75)
+						L = rGrid.Left + 3;
+					else L = rGrid.Right - allW - 1;
+					T = rGrid.Top + 1;
+					break;
+				case LegendPosition.TopLeft:
+					L = rGrid.Left + 3;
+					T = rGrid.Top + 1;
+					break;
+				default:
+				case LegendPosition.TopRight:
+					L = rGrid.Right - allW - 1;
+					T = rGrid.Top + 1;
+					break;
+				case LegendPosition.BottomLeft:
+					L = rGrid.Left + 3;
+					T = rGrid.Bottom - allH - 1;
+					break;
+				case LegendPosition.BottomRight:
+					L = rGrid.Right - allW - 1;
+					T = rGrid.Bottom - allH - 1;
+					break;
+			}
 			int boxW, boxH;
-			float ypos = rGrid.Top;
+			float ypos = T;
 			boxW = font1CharWidth - 2;
 			boxH = Math.Min(15, rowhei);
 			for (i = 0; i < series.Count; i++) {
 				var s = series[i];
 				pen.Width = 1;
 				pen.Color = Color.FromArgb(0xff, 0xe4, 0xe4, 0xe4);
-				sdcover.DrawRectangle(pen, rGrid.Right - legwid - hovwid - 5 - 20, ypos + (rowhei - boxH) / 2 + 3, 20, boxH);
+				sdcover.DrawRectangle(pen, L, ypos + (rowhei - boxH) / 2 + 2, 20, boxH);
 				brush.Color = s.color;
-				sdcover.FillRectangle(brush, rGrid.Right - legwid - hovwid - 25, ypos + (rowhei - boxH) / 2 + 7, 16, boxH - 6);
-				var legrect = new RectangleF(rGrid.Right - legwid - hovwid - 5, ypos + 5, legwid + hovwid, rowhei);
+				sdcover.FillRectangle(brush, L, ypos + (rowhei - boxH) / 2 + 6, 16, boxH - 6);
+				var legrect = new RectangleF(L + 20, ypos + 5, legwid + hovwid, rowhei);
 				sdcover.FillRectangle(Brushes.White, legrect);
 				sdcover.DrawString(s.legend + (C.enableCross ? " = " : ""), f, Brushes.Black, legrect.Left + legwid - s._legendwid, legrect.Top);
 				sdcover.DrawString(s._hovervalue, f, Brushes.Black, legrect.Left + legwid + hovwid - s._hovervaluewid, legrect.Top);
+				//sdcover.DrawRectangle(pen, rGrid.Right - legwid - hovwid - 5 - 20, ypos + (rowhei - boxH) / 2 + 3, 20, boxH);
+				//brush.Color = s.color;
+				//sdcover.FillRectangle(brush, rGrid.Right - legwid - hovwid - 25, ypos + (rowhei - boxH) / 2 + 7, 16, boxH - 6);
+				//var legrect = new RectangleF(rGrid.Right - legwid - hovwid - 5, ypos + 5, legwid + hovwid, rowhei);
+				//sdcover.FillRectangle(Brushes.White, legrect);
+				//sdcover.DrawString(s.legend + (C.enableCross ? " = " : ""), f, Brushes.Black, legrect.Left + legwid - s._legendwid, legrect.Top);
+				//sdcover.DrawString(s._hovervalue, f, Brushes.Black, legrect.Left + legwid + hovwid - s._hovervaluewid, legrect.Top);
 				ypos += rowhei;
 			}
 		}

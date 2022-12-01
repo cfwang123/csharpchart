@@ -1,23 +1,22 @@
 using System;
 using System.Collections.Generic;
-using System.Windows.Forms;
-﻿using System.Drawing;
+using System.Drawing;
 using System.Linq;
-using System.Runtime.Remoting.Metadata.W3cXsd2001;
 
 namespace Q.Chart {
-	
+
 	public sealed class Axis {
 		public bool isDate, isY;
 		public int ScreenWorH, Cmin, Cmax = 1;
 		public double Dmin, Dmax = 1, datamax, datamin, mousedownDmin, mousedownDmax, cDmax, cDmin;
+		public double initDmin, initDmax;
 		public short tickcount;
 		public string title = "", unit = "";
 		public List<TickLabel> tickarr = new List<TickLabel>(), cTicks;
 		//private
 		public int _nowtickdec, _tickmaxW, _left;
 		public bool _isAtLeft, _drawSmallGrid, _hasminmax;
-	
+
 		public bool cisNeedDrawLine(int c1, int c2) {
 			if (isY) {
 				if (c1 < Cmax) return c2 >= Cmax;
@@ -29,25 +28,31 @@ namespace Q.Chart {
 				else return c1 <= Cmax;
 			}
 		}
-	
+
 		public bool cisBetween(int c) {
-			if(isY) return c >= Cmax && c <= Cmin;
+			if (isY) return c >= Cmax && c <= Cmin;
 			return c >= Cmin && c <= Cmax;
 		}
-	
+
+		public void SetMinMaxByY0(Axis y0) {
+			double t = (initDmax - initDmin) / (y0.initDmax - y0.initDmin);
+			Dmin = (y0.Dmin - y0.initDmin) * t + initDmin;
+			Dmax = (y0.Dmax - y0.initDmin) * t + initDmin;
+		}
+
 		public int d2c(double d) {
 			return (int)(Cmin + (d - Dmin) / (Dmax - Dmin) * (Cmax - Cmin));
 		}
-	
+
 		public double c2d(int c) {
 			return (Dmin + (c - Cmin) / (double)(Cmax - Cmin) * (Dmax - Dmin));
 		}
-	
+
 		public void UpdateDMinMax(double xy) {
 			if (xy < Dmin) Dmin = xy;
 			if (xy > Dmax) Dmax = xy;
 		}
-	
+
 		public void UpdateDataMinMax(double xy, bool setD = false) {
 			if (xy < datamin) datamin = xy;
 			if (xy > datamax) datamax = xy;
@@ -56,11 +61,11 @@ namespace Q.Chart {
 				Dmax = datamax;
 			}
 		}
-	
+
 		enum TickType {
-			Second,Minute,Hour,Day,Month,Year
+			Second, Minute, Hour, Day, Month, Year
 		}
-		readonly static int[] TICKTYPESIZES = new int[] { 1, 60, 3600, 86400, 86400*30, 86400*365 };
+		readonly static int[] TICKTYPESIZES = new int[] { 1, 60, 3600, 86400, 86400 * 30, 86400 * 365 };
 		struct TickDefine {
 			public float nums;
 			public TickType unit;
@@ -108,7 +113,7 @@ namespace Q.Chart {
 			double delta = max - min;
 			int i;
 			int tickcount = (short)(int)(0.3 * Math.Sqrt(ScreenWorH));
-			for (i = 0; i < ALLOWTICKS.Length-1; i++) {
+			for (i = 0; i < ALLOWTICKS.Length - 1; i++) {
 				if (delta < ALLOWTICKS[i].inSecond * tickcount)
 					break;
 			}
@@ -117,13 +122,13 @@ namespace Q.Chart {
 			switch (t.unit) {
 				default:
 				case TickType.Second:
-					c = new DateTime(c.Year,c.Month,c.Day,c.Hour,c.Minute,(c.Second / (int)t.nums * (int)t.nums));
+					c = new DateTime(c.Year, c.Month, c.Day, c.Hour, c.Minute, (c.Second / (int)t.nums * (int)t.nums));
 					break;
 				case TickType.Minute:
-					c = new DateTime(c.Year,c.Month,c.Day,c.Hour,(c.Minute / (int)t.nums * (int)t.nums),0);
+					c = new DateTime(c.Year, c.Month, c.Day, c.Hour, (c.Minute / (int)t.nums * (int)t.nums), 0);
 					break;
 				case TickType.Hour:
-					c = new DateTime(c.Year,c.Month,c.Day,(c.Hour / (int)t.nums * (int)t.nums),0,0);
+					c = new DateTime(c.Year, c.Month, c.Day, (c.Hour / (int)t.nums * (int)t.nums), 0, 0);
 					break;
 				case TickType.Day:
 					c = c.Date;
@@ -149,13 +154,13 @@ namespace Q.Chart {
 					W = (int)Math.Ceiling(wh.Width),
 					H = (int)Math.Ceiling(wh.Height),
 				});
-				if(t.unit == TickType.Month) {
+				if (t.unit == TickType.Month) {
 					if (t.nums < 1) {
 						//0.25 month
 					}
 					else c = c.AddMonths((int)t.nums);
 				}
-				else if(t.unit == TickType.Year) {
+				else if (t.unit == TickType.Year) {
 					c = c.AddYears((int)t.nums);
 				}
 				else {
@@ -164,7 +169,7 @@ namespace Q.Chart {
 			}
 			while (v < max && v != prev && tickarr.Count < 100);
 		}
-	
+
 		static string DateTickFormat(DateTime d, double span, TickDefine T) {
 			if (T.inSecond < 60) return d.ToString("HH:mm:ss");
 			else if (T.inSecond < 86400) {
@@ -178,11 +183,11 @@ namespace Q.Chart {
 			}
 			else return d.ToString("yyyy");
 		}
-	
+
 		public void genTicks(double max, double min, short cTickDecimals, Graphics sdc, Font font1) {
 			if (cTicks != null) {
 				tickarr = cTicks;
-				for(int i = 0; i < tickarr.Count; i++) {
+				for (int i = 0; i < tickarr.Count; i++) {
 					var wh = sdc.MeasureString(tickarr[i].strvalue, font1);
 					tickarr[i] = new TickLabel {
 						value = tickarr[i].value,
@@ -207,12 +212,12 @@ namespace Q.Chart {
 				delta = (max - min) / tickcount;
 				dec = -(int)Math.Floor(Math.Log10(delta));
 				_nowtickdec = Math.Max(dec + 2, 0);
-				int tickwid = (int)(Math.Max(Util.ToDec(min,dec).Length, Util.ToDec(max, dec).Length) * charW) + 5;
+				int tickwid = (int)(Math.Max(Util.ToDec(min, dec).Length, Util.ToDec(max, dec).Length) * charW) + 5;
 				if (!isY && tickcount > 2 && tickwid * tickcount > ScreenWorH - 20)
 					tickcount--;
 				else break;
 			}
-	
+
 			if (cTickDecimals > 0 && dec > cTickDecimals)
 				dec = cTickDecimals;
 			double magn = Math.Pow(10, -dec);
@@ -237,7 +242,7 @@ namespace Q.Chart {
 			double start = Math.Floor(min / ticksize) * ticksize, v;
 			if (start < min)
 				start += ticksize;
-			while(start < max) {
+			while (start < max) {
 				string tickstr;
 				if (isDate) tickstr = MyChart.EPOCH.AddSeconds(start).ToString("HH:mm:ss");
 				else tickstr = Util.ToDec(start, dec);
